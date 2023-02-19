@@ -3,10 +3,10 @@ import std/sugar
 import std/deques
 import std/strformat
 import std/tables
-import math
+from math import sum, prod
 from strutils import parseFloat, strip, startsWith, join
 
-let primitives = ["+", "-", "*", "/", "=", "<", "do", "list"]
+let primitives = ["+", "-", "*", "/", "=", "<", "do", "list", "define"]
 
 
 type
@@ -25,13 +25,7 @@ type
         parent_environment: Environment
 
 
-proc env_write(env: Environment, symbol: string, value: Node): Environment =
-    result = env
-    result.t[symbol] = value
-
-proc env_read(env: Environment, symbol: string): Node =
-    # TODO: also try reading from parent environment
-    result = env.t[symbol]
+var base_env = new(Environment)
 
 
 proc isValidNumber(str: string): bool =
@@ -124,7 +118,7 @@ var ast = genAbstractSyntaxTree(tokens)
 echo toPlantUmlString(ast)
 
 
-proc eval(n: Node): Node
+proc eval(n: Node, env: Environment): (Node, Environment)
 
 proc new_num_node(num: float): Node =
     result = new(Node)
@@ -149,6 +143,18 @@ proc new_error_node(error_message: string): Node =
     result = new(Node)
     result.dataType = dt_error
     result.str = error_message
+
+
+proc env_write(env: Environment, symbol: string, value: Node): Environment =
+    result = env
+    result.t[symbol] = value
+
+proc env_read(env: Environment, symbol_node: Node): Node =
+    # TODO: also try reading from parent environment
+    if symbol_node.dataType == dt_symbol:
+        return(env.t[symbol_node.str])
+    else:
+        return(new_error_node("can't read a non-symbol"))
 
 
 proc eval_sum(nodes: seq[Node]): Node =
@@ -179,54 +185,63 @@ proc eval_lt(nodes: seq[Node]): Node =
     else:
         result = new_nil_node()
 
-
-proc eval_primitive(primitive: string, nodes: seq[Node]): Node =
-    case primitive:
-    of "+":
-        result = eval_sum(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "-":
-        result = eval_subtract(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "*":
-        result = eval_product(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "/":
-        result = eval_divide(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "=":
-        result = eval_equals(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "<":
-        result = eval_lt(block: collect(newSeq): (for n in nodes: eval(n)))
-    of "do":
-        # evaluate all arguments, and return the (evaluated) last one
-        var tmp = collect(newSeq): (for n in nodes: eval(n))
-        result = tmp[^1]
-    of "list":
-        result = new_list_node(block: collect(newSeq): (for n in nodes: eval(n)))
-    else:
-        result = nodes[0]
+# TODO: eval_buildin_function?
 
 
-proc eval(n: Node): Node =
+proc eval(n: Node, env: Environment): (Node, Environment) =
     var dataType = n.dataType
+    var result_node: Node
     case dataType
     of dt_lst:
-        var first_node_result = eval(n.lst[0])
+        var (first_node_result, env) = eval(n.lst[0], env)
         var first_node_result_datatype = first_node_result.dataType
         case first_node_result_datatype
-        of dt_function:
-            result = first_node_result # TODO
-        of dt_macro:
-            result = first_node_result # TODO
         of dt_primitive:
-            result = eval_primitive(first_node_result.str, n.lst[1 .. ^1])
+            var primitive = first_node_result.str
+            var nodes = n.lst[1 .. ^1]
+            case primitive:
+            of "+":
+                result_node = eval_sum(block: collect(newSeq): (for n in nodes: eval(n,  env)[0]))
+            of "-":
+                result_node = eval_subtract(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "*":
+                result_node = eval_product(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "/":
+                result_node = eval_divide(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "=":
+                result_node = eval_equals(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "<":
+                result_node = eval_lt(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "do":
+                # evaluate all arguments, and return the (evaluated) last one
+                # TODO: pass previous environment through each cycle
+                var tmp = collect(newSeq): (for n in nodes: eval(n, env))
+                result_node = tmp[^1][0]
+            of "list":
+                result_node = new_list_node(block: collect(newSeq): (for n in nodes: eval(n, env)[0]))
+            of "define":
+                # TODO: check that frist argument of define is a symbol name
+                var (tmp_n, env) = eval(nodes[1], env)
+                env = env_write(env, nodes[0].str, tmp_n)
+                result_node = nodes[0]
+            else:
+                result_node = nodes[0]
         of dt_symbol:
-            result = first_node_result # TODO
+            result_node = first_node_result # TODO
+        of dt_function:
+            result_node = first_node_result # TODO
+        of dt_macro:
+            result_node = first_node_result # TODO
         else:
-            result = first_node_result # TODO
+            result_node = new_error_node("First element in a list should be a closure, primitive, or symbol after evaluation.")
     of dt_symbol:
-        result = n
+        result_node = env_read(env, n)
     else:
-        result = n
+        result_node = n
+    return(result_node, env)
 
 
 
 echo ""
-echo toPlantUmlString(eval(ast))
+let (ast_result, env_result) = eval(ast, base_env)
+echo toPlantUmlString(ast_result)
