@@ -1,21 +1,6 @@
 (do
-  (define test (list * 6 7))
-  (eval test)
-
-  (define nil (= 1 2))
-
-  (cond
-    (nil 1)
-    (nil 2)
-    (nil 3)
-    (1 (+ 2 3)))
-
-  (define foo 1)
-  (define bar 0)
-  (while (< bar 42)
-    (do
-      (define foo (* 2 foo))
-      (define bar (+ 1 bar))))
-  foo
-
+  (define x 2)
+  (if (== x 2)
+    (print "asdfg")
+    (print "qwerty"))
 )

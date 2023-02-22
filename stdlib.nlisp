@@ -1,0 +1,66 @@
+(do
+ (define defmacro
+   (macro
+     (macro-name arglist body)
+     (quasiquote
+      (define 
+        (unquote macro-name)
+        (macro (unquote arglist) (unquote body))))))
+
+ (define defun
+   (macro
+     (function-name arglist body)
+     (quasiquote
+      (define 
+        (unquote function-name) 
+        (lambda (unquote arglist) (unquote body))))))
+
+ (define if
+   (macro
+     (test then else)
+     (quasiquote
+       (cond ((unquote test) (unquote then))
+             (1 (unquote else))))))
+  
+ (define and
+   (macro
+    (a b)
+    (quasiquote
+     (if (unquote a) (unquote b) nil))))
+  
+ (define or
+   (macro
+    (a b)
+    (quasiquote
+     (if (unquote a) (unquote a) (unquote b)))))
+
+ (define not
+   (lambda (x)
+     (if x nil (quote #t))))
+
+ (define >
+   (lambda (x y)
+     (< y x)))
+
+ (define <=
+   (lambda (x y)
+     (not (> x y))))
+
+ (define >=
+   (lambda (x y)
+     (not (< x y))))
+
+ (define runfile
+   (lambda (filename)
+     (eval (parse (readfile filename)))))
+
+
+ (define first
+   (lambda (x)
+     (nth 0 x)))
+ 
+ (define rest
+   (lambda (x)
+     (nthrest 0 x)))
+  
+)

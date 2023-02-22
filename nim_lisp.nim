@@ -7,8 +7,7 @@ from std/sequtils import zip
 from math import sum, prod
 from strutils import parseFloat, strip, startsWith, join
 
-let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "eval", "while", "cond", "input", "parse", "print"]
-
+let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "parse", "print", "macro", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest"]
 
 type
     DataType = enum
@@ -24,10 +23,9 @@ type
         of dt_string: string_var: string
         of dt_primitive: primitive_var: string
         of dt_symbol: symbol_var: string
-        of dt_lambda:
+        of dt_lambda, dt_macro:
           argument_names: seq[string]
           code: Node
-        of dt_macro: macro_var: string
         of dt_error: error_var: string
 
     Environment = object
@@ -85,6 +83,8 @@ proc to_string(self: Node): string =
         return "nil"
     of dt_error:
         return fmt"Error: {self.error_var}"
+    of dt_lst:
+        return "(" & join(block: collect(newSeq): (for n in self.list_var: to_string(n)), " ") & ")"
     else:
         return fmt"Error: printing for data of type {self.dataType} not implemented."
 
@@ -122,6 +122,8 @@ proc getTokenType(token: string): DataType =
         result = dt_string
     elif isValidNumber(token):
         result = dt_number
+    elif token == "nil":
+        result = dt_nil
     elif token in primitives:
         result = dt_primitive
     else:
@@ -167,6 +169,9 @@ proc genAbstractSyntaxTree(tokens: var Deque[string]): Node =
             var n = Node(dataType: dt_symbol)
             n.symbol_var = token
             return n
+        of dt_nil:
+            var n = Node(dataType: dt_nil)
+            return n
         else:
             assert (1 == 0) # TODO
             return new_error_node("yada")
@@ -197,6 +202,8 @@ proc toJsonString(n: Node): string =
         result = fmt"""{{"type": "nil", "value": ""}}"""
     of dt_lambda:
         result = fmt"""{{"type": "lambda", "arguments": "[{join(n.argument_names, ",")}]", "code": {toJsonString(n.code)}}}""" # TODO: fix argument names
+    of dt_macro:
+        result = fmt"""{{"type": "macro", "arguments": "[{join(n.argument_names, ",")}]", "code": {toJsonString(n.code)}}}""" # TODO: fix argument names
     else:
         # TODO: add more cases
         result = "yada"
@@ -236,6 +243,39 @@ proc eval_lt(nodes: seq[Node]): Node =
         return new_nil_node()
 
 # TODO: eval_buildin_function?
+proc eval(n: Node, env: ref Environment): Node
+
+
+proc quasiquote_eval(n: Node, env: ref Environment): Node = 
+    return new_list_node(block: collect(newSeq): 
+        for sub_n in n.list_var:
+            if sub_n.dataType == dt_lst:
+                if sub_n.list_var[0].dataType == dt_primitive: # TODO: convert to try catch statement
+                    if sub_n.list_var[0].primitive_var == "unquote":
+                        eval(sub_n.list_var[1], env)
+                    else:
+                        quasiquote_eval(sub_n, env)
+                else:
+                     quasiquote_eval(sub_n, env)
+            else:
+                sub_n
+     )
+
+
+proc macro_quasiquote_expand(n: Node, env: ref Environment): Node = 
+    return new_list_node(block: collect(newSeq): 
+        for sub_n in n.list_var:
+            if sub_n.dataType == dt_lst:
+                if sub_n.list_var[0].dataType == dt_primitive: # TODO: convert to try catch statement
+                    if sub_n.list_var[0].primitive_var == "unquote":
+                        env.get(sub_n.list_var[1].symbol_var) # TODO: error handling, what if not defined
+                    else:
+                        macro_quasiquote_expand(sub_n, env)
+                else:
+                     macro_quasiquote_expand(sub_n, env)
+            else:
+                sub_n
+     )
 
 
 proc eval(n: Node, env: ref Environment): Node =
@@ -302,6 +342,11 @@ proc eval(n: Node, env: ref Environment): Node =
                 result_node = Node(dataType: dt_lambda)
                 result_node.argument_names = collect(newSeq): (for n in nodes[0].list_var: n.symbol_var)
                 result_node.code = nodes[1]
+            of "macro":
+                # (macro (arg1 arg2 argn) code)
+                result_node = Node(dataType: dt_macro)
+                result_node.argument_names = collect(newSeq): (for n in nodes[0].list_var: n.symbol_var)
+                result_node.code = nodes[1]
             of "input":
                 # read from stdin
                 result_node = new_string_node(readLine(stdin))
@@ -310,12 +355,34 @@ proc eval(n: Node, env: ref Environment): Node =
                 result_node = read(eval(nodes[0], env).string_var)
             of "print":
                 # eval argument and print text to the stdout
-                echo to_string(eval(nodes[0], env))
+                result_node = eval(nodes[0], env)
+                echo to_string(result_node)
+            of "quote":
+                # return the first argument without any evaluation
+                result_node = nodes[0]
+            of "quasiquote":
+                result_node = quasiquote_eval(nodes[0], env) # TODO: check if correctly done
+            of "readfile":
+                let filename = eval(nodes[0], env).string_var
+                result_node = new_string_node(readFile(filename))
+            of "len":
+                # (len lst): return number of items in list lst
+                result_node = new_num_node(float(len(eval(nodes[0], env).list_var)))
+            of "nth":
+                # (nth n lst) return the n-th item in list lst
+                try:
+                    result_node = eval(nodes[1], env).list_var[int(eval(nodes[0], env).number_var)]
+                except IndexDefect:
+                    result_node = new_nil_node()
+            of "nthrest":
+                # (nthrest n list): return list[n+1:end]
+                try:
+                    result_node = new_list_node(eval(nodes[1], env).list_var[int(eval(nodes[0], env).number_var)+1 .. ^1])
+                except IndexDefect:
+                    result_node = new_nil_node()
             else:
                 assert 1 == 0 # TODO
                 result_node = nodes[0]
-        of dt_symbol:
-            result_node = first_node_result # TODO
         of dt_lambda:
             var arguments = n.list_var[1 .. ^1]
             assert (len(arguments) == len(first_node_result.argument_names)) # todo: convert to generate error node
@@ -326,11 +393,22 @@ proc eval(n: Node, env: ref Environment): Node =
                 subenv.set(argument_name, tmp_n)
             result_node = eval(first_node_result.code, subenv)
         of dt_macro:
-            result_node = first_node_result # TODO
+            var arguments = n.list_var[1 .. ^1]
+            assert (len(arguments) == len(first_node_result.argument_names)) # todo: convert to generate error node
+            # create a new scope, and bind the unevaluated arguments to the macro arguments
+            var subenv = new_subenv(env)
+            for (argument_name, argument) in zip(first_node_result.argument_names, arguments):
+                subenv.set(argument_name, argument)
+            # evaluate the macro code using the subenv to expand into a list of code to execute
+            # echo toPlantUmlString(first_node_result.code)
+            var tmp_n = macro_quasiquote_expand(first_node_result.code, subenv)
+            # evaluate this expanded list as code in the "regular" environment
+            result_node = eval(eval(tmp_n, env), env) # TODO: check
         else:
-            result_node = new_error_node("First element in a list should be a closure, primitive, or symbol after evaluation.")
+            result_node = new_error_node("First element in a list should be a closure, primitive, or macro after evaluation.")
     of dt_symbol:
-        result_node = env.get(n.symbol_var)
+        # result_node = env.get(n.symbol_var)
+        result_node = eval(env.get(n.symbol_var), env) # TODO: workaround if element in environment is, for example, a list. is this correct way to handle this? seems to be issue when using macro's
     else:
         result_node = n
     return result_node
@@ -339,14 +417,12 @@ proc eval(n: Node, env: ref Environment): Node =
 var env = new(Environment)
 env.has_parent_env = false
 
-#let source_in: string = "(do (define foo 6) (* foo 7))"
-#let source_in: string = "((lambda (x) (* x x)) 5)"
-#let source_in: string = "(do (define x 42) ((lambda (x) (* x x)) 5) x)"
-#let source_in: string = "(input)"
-#let source_in: string = "(do (define x (input)) x)"
-#let source_in: string = """(do (eval (parse "(+ 1 2)")))"""
-#let source_in: string = "(parse (input))"
-let source_in: string = "(while 1 (print (eval (parse (input)))))"
+let source_in: string = """
+(do
+ (eval (parse (readfile "stdlib.nlisp")))
+ (while 1 (print (eval (parse (input)))))
+)
+"""
 
 var ast = read(source_in)
 #echo toPlantUmlString(ast)
@@ -354,4 +430,5 @@ var ast = read(source_in)
 
 let ast_result = eval(ast, env)
 
+echo ""
 echo toPlantUmlString(ast_result)
