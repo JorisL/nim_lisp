@@ -7,7 +7,7 @@ from std/sequtils import zip
 from math import sum, prod
 from strutils import parseFloat, strip, startsWith, join
 
-let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "parse", "print", "macro", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest"]
+let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "parse", "print", "macro", "macroexpand", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest", "insert", "remove"]
 
 type
     DataType = enum
@@ -79,6 +79,8 @@ proc to_string(self: Node): string =
         return "\"" & fmt"{self.string_var}" & "\""
     of dt_symbol:
         return self.symbol_var
+    of dt_primitive:
+        return self.primitive_var
     of dt_nil:
         return "nil"
     of dt_error:
@@ -278,6 +280,17 @@ proc macro_quasiquote_expand(n: Node, env: ref Environment): Node =
      )
 
 
+proc macroexpand(mcr: Node, mcr_args: seq[Node], env: ref Environment): Node =
+    assert (len(mcr_args) == len(mcr.argument_names)) # todo: convert to generate error node
+    # create a new scope, and bind the unevaluated arguments to the macro arguments
+    var subenv = new_subenv(env)
+    for (argument_name, argument) in zip(mcr.argument_names, mcr_args):
+        subenv.set(argument_name, argument)
+    # evaluate the macro code using the subenv to expand into a list of code to execute
+    # echo toPlantUmlString(first_node_result.code)
+    return eval(macro_quasiquote_expand(mcr.code, subenv), env)
+
+
 proc eval(n: Node, env: ref Environment): Node =
     var dataType = n.dataType
     var result_node: Node
@@ -347,6 +360,10 @@ proc eval(n: Node, env: ref Environment): Node =
                 result_node = Node(dataType: dt_macro)
                 result_node.argument_names = collect(newSeq): (for n in nodes[0].list_var: n.symbol_var)
                 result_node.code = nodes[1]
+            of "macroexpand":
+                # (macroexpand macrocall)
+                var tmp_n = eval(nodes[0], env)
+                result_node = macroexpand(eval(tmp_n.list_var[0], env), tmp_n.list_var[1 .. ^1], env)
             of "input":
                 # read from stdin
                 result_node = new_string_node(readLine(stdin))
@@ -369,17 +386,24 @@ proc eval(n: Node, env: ref Environment): Node =
                 # (len lst): return number of items in list lst
                 result_node = new_num_node(float(len(eval(nodes[0], env).list_var)))
             of "nth":
-                # (nth n lst) return the n-th item in list lst
+                # (nth lst n) return the n-th item in list lst
                 try:
-                    result_node = eval(nodes[1], env).list_var[int(eval(nodes[0], env).number_var)]
+                    result_node = eval(nodes[0], env).list_var[int(eval(nodes[1], env).number_var)]
                 except IndexDefect:
                     result_node = new_nil_node()
             of "nthrest":
-                # (nthrest n list): return list[n+1:end]
+                # (nthrest list n): return list[n+1:end]
                 try:
-                    result_node = new_list_node(eval(nodes[1], env).list_var[int(eval(nodes[0], env).number_var)+1 .. ^1])
+                    result_node = new_list_node(eval(nodes[0], env).list_var[int(eval(nodes[1], env).number_var)+1 .. ^1])
                 except IndexDefect:
                     result_node = new_nil_node()
+            of "insert":
+                # (insert dest src idx)
+                # TODO: modify in place or return copy? nim default for insert is modify in place
+                result_node = eval(nodes[0], env)
+                result_node.list_var.insert(eval(nodes[1], env), int(eval(nodes[2], env).number_var))
+            of "remove":
+                result_node = nodes[0] # TODO
             else:
                 assert 1 == 0 # TODO
                 result_node = nodes[0]
@@ -389,26 +413,15 @@ proc eval(n: Node, env: ref Environment): Node =
             # evaluate each argument, and write it with it's corresponding argument name to a new sub-environment
             var subenv = new_subenv(env)
             for (argument_name, argument) in zip(first_node_result.argument_names, arguments):
-                var tmp_n = eval(argument, env) # TODO: evaluate in env or subenv?
-                subenv.set(argument_name, tmp_n)
+                subenv.set(argument_name, eval(argument, env))
             result_node = eval(first_node_result.code, subenv)
         of dt_macro:
             var arguments = n.list_var[1 .. ^1]
-            assert (len(arguments) == len(first_node_result.argument_names)) # todo: convert to generate error node
-            # create a new scope, and bind the unevaluated arguments to the macro arguments
-            var subenv = new_subenv(env)
-            for (argument_name, argument) in zip(first_node_result.argument_names, arguments):
-                subenv.set(argument_name, argument)
-            # evaluate the macro code using the subenv to expand into a list of code to execute
-            # echo toPlantUmlString(first_node_result.code)
-            var tmp_n = macro_quasiquote_expand(first_node_result.code, subenv)
-            # evaluate this expanded list as code in the "regular" environment
-            result_node = eval(eval(tmp_n, env), env) # TODO: check
+            result_node = eval(macroexpand(first_node_result, arguments, env), env)
         else:
             result_node = new_error_node("First element in a list should be a closure, primitive, or macro after evaluation.")
     of dt_symbol:
-        # result_node = env.get(n.symbol_var)
-        result_node = eval(env.get(n.symbol_var), env) # TODO: workaround if element in environment is, for example, a list. is this correct way to handle this? seems to be issue when using macro's
+        result_node = env.get(n.symbol_var)
     else:
         result_node = n
     return result_node
@@ -416,6 +429,10 @@ proc eval(n: Node, env: ref Environment): Node =
 
 var env = new(Environment)
 env.has_parent_env = false
+
+
+# TODO: eval all arguments n+1 during while loop?
+
 
 let source_in: string = """
 (do

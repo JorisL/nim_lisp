@@ -20,7 +20,7 @@
      (test then else)
      (quasiquote
        (cond ((unquote test) (unquote then))
-             (1 (unquote else))))))
+             (#t (unquote else))))))
   
  (define and
    (macro
@@ -57,10 +57,44 @@
 
  (define first
    (lambda (x)
-     (nth 0 x)))
+     (nth x 0)))
  
  (define rest
    (lambda (x)
-     (nthrest 0 x)))
+     (nthrest x 0)))
+
+ (define append
+   (lambda (lst elt)
+     (insert lst elt (len lst))))
   
+  (define range
+    (lambda (x)
+      (do 
+        (define counter 0)
+        (define result (quote ()))
+        (while (< counter x)
+          (do
+            (append result counter)
+            (define counter (+ counter 1))))
+        result)))
+ 
+ (define for
+   (macro (sym container code)
+     (quasiquote 
+       (do 
+         (define _for_loop_counter_ 0)
+         (define _for_loop_container_ (unquote container))
+         (while (< _for_loop_counter_ (len _for_loop_container_))
+           (do
+             (define (unquote sym) (nth _for_loop_container_ _for_loop_counter_))
+             (define _for_loop_counter_ (+ _for_loop_counter_ 1))
+             (unquote code)))))))
+ 
+
+  (define fact
+    (lambda (x)
+      (if (<= x 1)
+        1
+        (* x (fact (- x 1))))))
+    
 )
