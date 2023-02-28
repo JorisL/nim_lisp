@@ -6,8 +6,9 @@
       (define 
         (unquote macro-name)
         (macro (unquote arglist) (unquote body))))))
-
- (define defun
+ 
+  ; syntax: (define f (arg1 arg2) (code))
+  (define defun
    (macro
      (function-name arglist body)
      (quasiquote
@@ -15,7 +16,8 @@
         (unquote function-name) 
         (lambda (unquote arglist) (unquote body))))))
 
- (define if
+  ; syntax: (if (test_code) (then_code) (else_code))
+  (define if
    (macro
      (test then else)
      (quasiquote
@@ -67,11 +69,11 @@
    (lambda (lst elt)
      (insert lst elt (len lst))))
   
-  (define range
+ (define range
     (lambda (x)
       (do 
         (define counter 0)
-        (define result (quote ()))
+        (define result (list))
         (while (< counter x)
           (do
             (append result counter)
@@ -82,14 +84,20 @@
    (macro (sym container code)
      (quasiquote 
        (do 
+         (define _result_list_ (list))
          (define _for_loop_counter_ 0)
          (define _for_loop_container_ (unquote container))
          (while (< _for_loop_counter_ (len _for_loop_container_))
            (do
              (define (unquote sym) (nth _for_loop_container_ _for_loop_counter_))
              (define _for_loop_counter_ (+ _for_loop_counter_ 1))
-             (unquote code)))))))
+             (append _result_list_ (unquote code))))
+          _result_list_))))
  
+
+ (defun plantuml_ast (ast)
+   (+ "\n@startjson\n" (json_ast ast) "\n@endjson\n"))
+
 
   (define fact
     (lambda (x)
