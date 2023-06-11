@@ -3,11 +3,12 @@ import std/sugar
 import std/deques
 import std/strformat
 import std/tables
-from std/sequtils import zip
+import std/terminal
+from std/sequtils import zip, toSeq, filter, all
 from math import sum, prod
-from strutils import parseFloat, strip, startsWith, join
+from strutils import parseFloat, strip, startsWith, join, unescape
 
-let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "parse", "print", "macro", "macroexpand", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest", "insert", "remove"]
+let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "readchar", "parse", "print", "print_str", "macro", "macroexpand", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest", "insert", "delete", "regex_findall", "regex_split", "json_ast"]
 
 type
     DataType = enum
@@ -135,14 +136,10 @@ proc getTokenType(token: string): DataType =
 proc read_tokens(source_in: string): Deque[string] =
     var tokens = collect(newSeq):
         for token in findAll(source_in, re"""\s*([\()]|"(?:\\.|[^\\"])*"?|;.*|[^\s()";]*)\s*"""): strip(token)
-    return tokens.toDeque()
+    return tokens.filter(proc(x: string): bool = x.startsWith(";") != true).toDeque()
 
 
 proc genAbstractSyntaxTree(tokens: var Deque[string]): Node =
-    # doAssert(len(tokens) >= 1)
-
-    # TODO: remove comment tokens
-
     var token: string = tokens.popFirst()
     case token
     of "(":
@@ -161,7 +158,8 @@ proc genAbstractSyntaxTree(tokens: var Deque[string]): Node =
             return n
         of dt_string:
             var n = Node(dataType: dt_string)
-            n.string_var = token.substr(1, len(token) - 2) # remove leading and trailing quotes
+            # remove leading and trailing quotes, and "apply" newline / tab characters
+            n.string_var = token.unescape().multireplace([(re"\\n", "\n"), (re"\\t", "\t")])
             return n
         of dt_primitive:
             var n = Node(dataType: dt_primitive)
@@ -210,13 +208,18 @@ proc toJsonString(n: Node): string =
         # TODO: add more cases
         result = "yada"
 
-
 proc toPlantUmlString(n: Node): string =
     "@startjson\n" & toJsonString(n) & "\n@endjson"
 
 
-proc eval_sum(nodes: seq[Node]): Node =
-    return new_num_node(sum(block: collect(newSeq): (for n in nodes: n.number_var)))
+proc eval_add(nodes: seq[Node]): Node =
+    if all(block: collect(newSeq): (for n in nodes: n), proc (n: Node): bool = n.dataType == dt_number):
+        return new_num_node(sum(block: collect(newSeq): (for n in nodes: n.number_var)))
+    elif all(block: collect(newSeq): (for n in nodes: n), proc (n: Node): bool = n.dataType == dt_string):
+        let strings = block: collect(newSeq): (for n in nodes: n.string_var)
+        return new_string_node(strings.join(""))
+    else:
+        return new_error_node("Datatypes not supported for primitive +")
 
 proc eval_subtract(nodes: seq[Node]): Node =
     # TODO: what about more than 2 arguments?
@@ -304,7 +307,7 @@ proc eval(n: Node, env: ref Environment): Node =
             var nodes = n.list_var[1 .. ^1]
             case primitive:
             of "+":
-                result_node = eval_sum(block: collect(newSeq): (for n in nodes: eval(n,  env)))
+                result_node = eval_add(block: collect(newSeq): (for n in nodes: eval(n,  env)))
             of "-":
                 result_node = eval_subtract(block: collect(newSeq): (for n in nodes: eval(n, env)))
             of "*":
@@ -367,6 +370,9 @@ proc eval(n: Node, env: ref Environment): Node =
             of "input":
                 # read from stdin
                 result_node = new_string_node(readLine(stdin))
+            of "readchar":
+                # read single character from stdin
+                result_node = new_string_node(fmt"{getch()}")
             of "parse":
                 # eval argument and parse text into an AST
                 result_node = read(eval(nodes[0], env).string_var)
@@ -374,6 +380,11 @@ proc eval(n: Node, env: ref Environment): Node =
                 # eval argument and print text to the stdout
                 result_node = eval(nodes[0], env)
                 echo to_string(result_node)
+            of "print_str":
+                # print argument (should be string) directly to the stdout without additional formatting or newlines
+                # TODO: error handling if not a string?
+                result_node = eval(nodes[0], env)
+                stdout.write result_node.string_var
             of "quote":
                 # return the first argument without any evaluation
                 result_node = nodes[0]
@@ -398,12 +409,26 @@ proc eval(n: Node, env: ref Environment): Node =
                 except IndexDefect:
                     result_node = new_nil_node()
             of "insert":
-                # (insert dest src idx)
+                # (insert dest idx src)
                 # TODO: modify in place or return copy? nim default for insert is modify in place
+                # TODO: what if out of range?
                 result_node = eval(nodes[0], env)
-                result_node.list_var.insert(eval(nodes[1], env), int(eval(nodes[2], env).number_var))
-            of "remove":
-                result_node = nodes[0] # TODO
+                result_node.list_var.insert(eval(nodes[2], env), int(eval(nodes[1], env).number_var))
+            of "delete":
+                # (delete dest idx)
+                # TODO: what if out of range?
+                result_node = eval(nodes[0], env)
+                result_node.list_var.delete(int(eval(nodes[1], env).number_var))
+            of "regex_findall":
+                # (regex_findall string pattern)
+                let matches = findAll(eval(nodes[0], env).string_var, rex(eval(nodes[1], env).string_var))
+                result_node = new_list_node(block: collect(newSeq): (for match in matches: new_string_node(match)))
+            of "regex_split":
+                # (regex_split string seperator)
+                let matches = toSeq(split(eval(nodes[0], env).string_var, rex(eval(nodes[1], env).string_var)))
+                result_node = new_list_node(block: collect(newSeq): (for match in matches: new_string_node(match)))
+            of "json_ast":
+                result_node = new_string_node(toJsonString(eval(nodes[0], env)))
             else:
                 assert 1 == 0 # TODO
                 result_node = nodes[0]
@@ -430,10 +455,6 @@ proc eval(n: Node, env: ref Environment): Node =
 var env = new(Environment)
 env.has_parent_env = false
 
-
-# TODO: eval all arguments n+1 during while loop?
-
-
 let source_in: string = """
 (do
  (eval (parse (readfile "stdlib.nlisp")))
@@ -442,10 +463,4 @@ let source_in: string = """
 """
 
 var ast = read(source_in)
-#echo toPlantUmlString(ast)
-#echo ""
-
 let ast_result = eval(ast, env)
-
-echo ""
-echo toPlantUmlString(ast_result)

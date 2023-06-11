@@ -6,8 +6,9 @@
       (define 
         (unquote macro-name)
         (macro (unquote arglist) (unquote body))))))
-
- (define defun
+ 
+  ; syntax: (define f (arg1 arg2) (code))
+  (define defun
    (macro
      (function-name arglist body)
      (quasiquote
@@ -15,7 +16,8 @@
         (unquote function-name) 
         (lambda (unquote arglist) (unquote body))))))
 
- (define if
+  ; syntax: (if (test_code) (then_code) (else_code))
+  (define if
    (macro
      (test then else)
      (quasiquote
@@ -34,67 +36,106 @@
     (quasiquote
      (if (unquote a) (unquote a) (unquote b)))))
 
- (define not
-   (lambda (x)
-     (if x nil (quote #t))))
+ (defun not (x)
+     (if x nil (quote #t)))
 
- (define >
-   (lambda (x y)
-     (< y x)))
+ (defun > (x y)
+     (< y x))
 
- (define <=
-   (lambda (x y)
-     (not (> x y))))
+ (defun <= (x y)
+     (not (> x y)))
 
- (define >=
-   (lambda (x y)
-     (not (< x y))))
+ (defun >= (x y)
+     (not (< x y)))
 
- (define runfile
-   (lambda (filename)
-     (eval (parse (readfile filename)))))
+ (defun runfile (filename)
+     (eval (parse (readfile filename))))
 
 
- (define first
-   (lambda (x)
-     (nth x 0)))
+ (defun first (x)
+     (nth x 0))
  
- (define rest
-   (lambda (x)
-     (nthrest x 0)))
+ (defun rest (x)
+     (nthrest x 0))
 
- (define append
-   (lambda (lst elt)
-     (insert lst elt (len lst))))
+ (defun append (lst elt)
+     (insert lst (len lst) elt))
   
-  (define range
-    (lambda (x)
+ (defun range (x)
       (do 
         (define counter 0)
-        (define result (quote ()))
+        (define result (list))
         (while (< counter x)
           (do
             (append result counter)
             (define counter (+ counter 1))))
-        result)))
+        result))
  
  (define for
    (macro (sym container code)
      (quasiquote 
        (do 
+         (define _result_list_ (list))
          (define _for_loop_counter_ 0)
          (define _for_loop_container_ (unquote container))
          (while (< _for_loop_counter_ (len _for_loop_container_))
            (do
              (define (unquote sym) (nth _for_loop_container_ _for_loop_counter_))
              (define _for_loop_counter_ (+ _for_loop_counter_ 1))
-             (unquote code)))))))
+             (append _result_list_ (unquote code))))
+          _result_list_))))
  
 
-  (define fact
-    (lambda (x)
+ (defun plantuml_ast (ast)
+   (+ "\n@startjson\n" (json_ast ast) "\n@endjson\n"))
+
+
+(defun set (lst idx elt)
+  (do
+    (insert lst idx elt)
+    (delete lst (+ 1 idx))))
+
+
+(define run
+  (macro (filename)
+    (quasiquote (eval (parse (readfile (unquote filename)))))))
+
+
+; TODO: proper implementation
+(defun mod (number divisor)
+  (do
+    (while (< number 0)
+      (define number (+ number divisor)))
+    (while (>= number divisor)
+      (define number (- number divisor)))
+    number
+  )
+)
+
+(define +=
+  (macro (var amount)
+    (quasiquote
+      (define (unquote var) (+ (unquote var) (unquote amount))))))
+
+(define -=
+  (macro (var amount)
+    (quasiquote
+      (define (unquote var) (- (unquote var) (unquote amount))))))
+
+(defun in (lst elt)
+  (do
+    (define idx 0)
+    (define result nil)
+    (while (not (or (>= idx (len lst)) (not (== result nil))))
+      (do
+        (define result (== (nth lst idx) elt))
+        (+= idx 1)
+      ))
+    result))
+
+  (defun fact (x)
       (if (<= x 1)
         1
-        (* x (fact (- x 1))))))
-    
+        (* x (fact (- x 1)))))
+
 )

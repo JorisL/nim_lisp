@@ -1,0 +1,404 @@
+(do
+  ; First define several helper functions
+
+  ; returns #t if the character c is one of the 8 braifuck operators, nil otherwise.
+  (defun is_valid_bf_char (c)
+    (cond
+        ((== c "+") #t)
+        ((== c "-") #t)
+        ((== c "<") #t)
+        ((== c ">") #t)
+        ((== c "[") #t)
+        ((== c "]") #t)
+        ((== c ",") #t)
+        ((== c ".") #t)
+        (#t nil)))
+
+  ; convert a number to its corresponding ASCII character.
+  (defun to_ascii (n)
+    (cond
+        ((== n 7) "\a")
+        ((== n 8) "\b")
+        ((== n 9) "\t")
+        ((== n 10) "\n")
+        ((== n 11) "\v")
+        ((== n 12) "\f")
+        ((== n 13) "\r")
+        ((== n 32) " ")
+        ((== n 33) "!")
+        ((== n 34) "\"")
+        ((== n 35) "#")
+        ((== n 36) "$")
+        ((== n 37) "%")
+        ((== n 38) "&")
+        ((== n 39) "'")
+        ((== n 40) "(")
+        ((== n 41) ")")
+        ((== n 42) "*")
+        ((== n 43) "+")
+        ((== n 44) ",")
+        ((== n 45) "-")
+        ((== n 46) ".")
+        ((== n 47) "/")
+        ((== n 48) "0")
+        ((== n 49) "1")
+        ((== n 50) "2")
+        ((== n 51) "3")
+        ((== n 52) "4")
+        ((== n 53) "5")
+        ((== n 54) "6")
+        ((== n 55) "7")
+        ((== n 56) "8")
+        ((== n 57) "9")
+        ((== n 58) ":")
+        ((== n 59) ";")
+        ((== n 60) "<")
+        ((== n 61) "=")
+        ((== n 62) ">")
+        ((== n 63) "?")
+        ((== n 64) "@")
+        ((== n 65) "A")
+        ((== n 66) "B")
+        ((== n 67) "C")
+        ((== n 68) "D")
+        ((== n 69) "E")
+        ((== n 70) "F")
+        ((== n 71) "G")
+        ((== n 72) "H")
+        ((== n 73) "I")
+        ((== n 74) "J")
+        ((== n 75) "K")
+        ((== n 76) "L")
+        ((== n 77) "M")
+        ((== n 78) "N")
+        ((== n 79) "O")
+        ((== n 80) "P")
+        ((== n 81) "Q")
+        ((== n 82) "R")
+        ((== n 83) "S")
+        ((== n 84) "T")
+        ((== n 85) "U")
+        ((== n 86) "V")
+        ((== n 87) "W")
+        ((== n 88) "X")
+        ((== n 89) "Y")
+        ((== n 90) "Z")
+        ((== n 91) "[")
+        ((== n 92) "\\")
+        ((== n 93) "]")
+        ((== n 94) "^")
+        ((== n 95) "_")
+        ((== n 96) "`")
+        ((== n 97) "a")
+        ((== n 98) "b")
+        ((== n 99) "c")
+        ((== n 100) "d")
+        ((== n 101) "e")
+        ((== n 102) "f")
+        ((== n 103) "g")
+        ((== n 104) "h")
+        ((== n 105) "i")
+        ((== n 106) "j")
+        ((== n 107) "k")
+        ((== n 108) "l")
+        ((== n 109) "m")
+        ((== n 110) "n")
+        ((== n 111) "o")
+        ((== n 112) "p")
+        ((== n 113) "q")
+        ((== n 114) "r")
+        ((== n 115) "s")
+        ((== n 116) "t")
+        ((== n 117) "u")
+        ((== n 118) "v")
+        ((== n 119) "w")
+        ((== n 120) "x")
+        ((== n 121) "y")
+        ((== n 122) "z")
+        ((== n 123) "{")
+        ((== n 124) "|")
+        ((== n 125) "}")
+        ((== n 126) "~")))
+
+  ; convert an ASCII character to its corresponding number.
+  (defun from_ascii (n)
+    (cond
+        ((== n "\a") 7)
+        ((== n "\b") 8)
+        ((== n "\n") 10)
+        ((== n "\v") 11)
+        ((== n "\f") 12)
+        ((== n "\r") 13)
+        ((== n " ") 32)
+        ((== n "!") 33)
+        ((== n "\"") 34)
+        ((== n "#") 35)
+        ((== n "$") 36)
+        ((== n "%") 37)
+        ((== n "&") 38)
+        ((== n "'") 39)
+        ((== n "(") 40)
+        ((== n ")") 41)
+        ((== n "*") 42)
+        ((== n "+") 43)
+        ((== n ",") 44)
+        ((== n "-") 45)
+        ((== n ".") 46)
+        ((== n "/") 47)
+        ((== n "0") 48)
+        ((== n "1") 49)
+        ((== n "2") 50)
+        ((== n "3") 51)
+        ((== n "4") 52)
+        ((== n "5") 53)
+        ((== n "6") 54)
+        ((== n "7") 55)
+        ((== n "8") 56)
+        ((== n "9") 57)
+        ((== n ":") 58)
+        ((== n ";") 59)
+        ((== n "<") 60)
+        ((== n "=") 61)
+        ((== n ">") 62)
+        ((== n "?") 63)
+        ((== n "@") 64)
+        ((== n "A") 65)
+        ((== n "B") 66)
+        ((== n "C") 67)
+        ((== n "D") 68)
+        ((== n "E") 69)
+        ((== n "F") 70)
+        ((== n "G") 71)
+        ((== n "H") 72)
+        ((== n "I") 73)
+        ((== n "J") 74)
+        ((== n "K") 75)
+        ((== n "L") 76)
+        ((== n "M") 77)
+        ((== n "N") 78)
+        ((== n "O") 79)
+        ((== n "P") 80)
+        ((== n "Q") 81)
+        ((== n "R") 82)
+        ((== n "S") 83)
+        ((== n "T") 84)
+        ((== n "U") 85)
+        ((== n "V") 86)
+        ((== n "W") 87)
+        ((== n "X") 88)
+        ((== n "Y") 89)
+        ((== n "Z") 90)
+        ((== n "[") 91)
+        ((== n "\\") 92)
+        ((== n "]") 93)
+        ((== n "^") 94)
+        ((== n "_") 95)
+        ((== n "`") 96)
+        ((== n "a") 97)
+        ((== n "b") 98)
+        ((== n "c") 99)
+        ((== n "d") 100)
+        ((== n "e") 101)
+        ((== n "f") 102)
+        ((== n "g") 103)
+        ((== n "h") 104)
+        ((== n "i") 105)
+        ((== n "j") 106)
+        ((== n "k") 107)
+        ((== n "l") 108)
+        ((== n "m") 109)
+        ((== n "n") 110)
+        ((== n "o") 111)
+        ((== n "p") 112)
+        ((== n "q") 113)
+        ((== n "r") 114)
+        ((== n "s") 115)
+        ((== n "t") 116)
+        ((== n "u") 117)
+        ((== n "v") 118)
+        ((== n "w") 119)
+        ((== n "x") 120)
+        ((== n "y") 121)
+        ((== n "z") 122)
+        ((== n "{") 123)
+        ((== n "|") 124)
+        ((== n "}") 125)
+        ((== n "~") 126)))
+        
+
+  ; Function to evaluate a brainfuck program from a string.
+  ; The input command "," is handled interactively during execution.
+  (defun eval_bf_interactive (program_str)
+    (do
+        ; Create a list with the brainfuck program, with a single element for each operator.
+        ; This also removes all non-valid brainfuck operators from the given program.
+        (define program (list))
+        (for c (regex_split program_str "")
+            (if (is_valid_bf_char c) (append program c) nil))
+
+        ; Define variables to store the current instruction pointer, data list, and current active data list element.
+        ; Start the data list with only 1 item, set to 0. When moving right on the tape additional elements will be appended when required.
+        (define program_ptr 0)
+        (define data (list 0))
+        (define data_ptr 0)
+
+        (while (< program_ptr (len program))
+            (do
+                (define current_instruction (nth program program_ptr))
+                (cond
+                    ; +: increment the number at the data pointer by 1, and wrap between 0 and 255
+                    ((== current_instruction "+")
+                    (set data data_ptr (mod (+ (nth data data_ptr) 1) 256)))
+
+                    ; +: decrement the number at the data pointer by 1, and wrap between 0 and 255
+                    ((== current_instruction "-")
+                    (set data data_ptr (mod (- (nth data data_ptr) 1) 256)))
+                
+                    ; >: increment data pointer by 1, and append 0 to data list if required.
+                    ((== current_instruction ">")
+                    (do
+                        (+= data_ptr 1)
+                        (if (>= data_ptr (- (len data) 1))
+                        (append data 0)
+                        nil)))
+                    
+                    ; <: decrement data pointer by 1
+                    ((== current_instruction "<")
+                    (-= data_ptr 1))
+                    
+
+                    ((== current_instruction ".")
+                    (print_str (to_ascii (nth data data_ptr))))
+
+                    ((== current_instruction ",")
+                    (set data data_ptr (from_ascii (readchar))))
+
+
+                    ((== current_instruction "[")
+                    (if
+                        (== (nth data data_ptr) 0)
+                        (do
+                            (define open_braces 1)
+                            (while (> open_braces 0)
+                                (do
+                                    (+= program_ptr 1)
+                                    (cond 
+                                        ((== (nth program program_ptr) "[")
+                                        (+= open_braces 1))
+                                        ((== (nth program program_ptr) "]")
+                                        (-= open_braces 1))))))
+                        nil))
+
+                    ((== current_instruction "]")
+                    (do
+                    (define open_braces 1)
+                    (while (> open_braces 0)
+                                (do
+                                    (-= program_ptr 1)
+                                    (cond 
+                                        ((== (nth program program_ptr) "[")
+                                        (-= open_braces 1))
+                                        ((== (nth program program_ptr) "]")
+                                        (+= open_braces 1)))))
+                        (-= program_ptr 1))))
+                
+                (+= program_ptr 1)
+
+                ;(print data)  ; uncomment to show data state after each program cycle
+            )
+            ;(print data)  ; uncomment to show final data state
+        )))
+
+
+
+  ; Function to evaluate a brainfuck program from a string.
+  ; Non interactive version, where the input to "," is already given in the arguments.
+  (defun eval_bf (program_str input_str)
+    (do
+        ; Create a list with the brainfuck program, with a single element for each operator.
+        ; This also removes all non-valid brainfuck operators from the given program.
+        (define program (list))
+        (for c (regex_split program_str "")
+            (if (is_valid_bf_char c) (append program c) nil))
+
+        ; Define variables to store the current instruction pointer, data list, and current active data list element.
+        ; Start the data list with only 1 item, set to 0. When moving right on the tape additional elements will be appended when required.
+        (define program_ptr 0)
+        (define data (list 0))
+        (define data_ptr 0)
+
+        (define input_list (regex_split input_str ""))
+
+        (while (< program_ptr (len program))
+            (do
+                (define current_instruction (nth program program_ptr))
+                (cond
+                    ; +: increment the number at the data pointer by 1, and wrap between 0 and 255
+                    ((== current_instruction "+")
+                        (set data data_ptr (mod (+ (nth data data_ptr) 1) 256)))
+
+                    ; +: decrement the number at the data pointer by 1, and wrap between 0 and 255
+                    ((== current_instruction "-")
+                        (set data data_ptr (mod (- (nth data data_ptr) 1) 256)))
+                
+                    ; >: increment data pointer by 1, and append 0 to data list if required.
+                    ((== current_instruction ">")
+                        (do
+                            (+= data_ptr 1)
+                            (if (>= data_ptr (- (len data) 1))
+                            (append data 0)
+                            nil)))
+                    
+                    ; <: decrement data pointer by 1
+                    ((== current_instruction "<")
+                        (-= data_ptr 1))
+                    
+
+                    ((== current_instruction ".")
+                        (print_str (to_ascii (nth data data_ptr))))
+
+
+                    ((== current_instruction ",")
+                        (do
+                            (if (== (len input_list) 0)
+                                (set data data_ptr 0)
+                                (do
+                                    (set data data_ptr (from_ascii (first input_list)))
+                                    (define input_list (rest input_list))))))
+
+
+                    ((== current_instruction "[")
+                        (if
+                            (== (nth data data_ptr) 0)
+                            (do
+                                (define open_braces 1)
+                                (while (> open_braces 0)
+                                    (do
+                                        (+= program_ptr 1)
+                                        (cond 
+                                            ((== (nth program program_ptr) "[")
+                                            (+= open_braces 1))
+                                            ((== (nth program program_ptr) "]")
+                                            (-= open_braces 1))))))
+                            nil))
+
+                    ((== current_instruction "]")
+                        (do
+                        (define open_braces 1)
+                        (while (> open_braces 0)
+                                    (do
+                                        (-= program_ptr 1)
+                                        (cond 
+                                            ((== (nth program program_ptr) "[")
+                                            (-= open_braces 1))
+                                            ((== (nth program program_ptr) "]")
+                                            (+= open_braces 1)))
+                                    ))
+                            (-= program_ptr 1))))
+                
+                (+= program_ptr 1)
+
+                ;(print data)  ; uncomment to show data state after each program cycle
+            )
+            ;(print data)  ; uncomment to show final data state
+        ))))
