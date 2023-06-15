@@ -3,19 +3,12 @@ import std/sugar
 import std/deques
 import std/strformat
 import std/tables
-<<<<<<< HEAD
 import std/terminal
-=======
->>>>>>> 7b18cf8ca4eccee7d3757a05451f8c385a7ec480
 from std/sequtils import zip, toSeq, filter, all
 from math import sum, prod
 from strutils import parseFloat, strip, startsWith, join, unescape
 
-<<<<<<< HEAD
 let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "readchar", "parse", "print", "print_str", "macro", "macroexpand", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest", "insert", "delete", "regex_findall", "regex_split", "json_ast"]
-=======
-let primitives = ["+", "-", "*", "/", "==", "<", "do", "list", "define", "lambda", "macro", "eval", "while", "cond", "input", "parse", "print", "macro", "macroexpand", "quote", "quasiquote", "unquote", "readfile", "len", "nth", "nthrest", "insert", "remove", "regex_findall", "regex_split", "json_ast"]
->>>>>>> 7b18cf8ca4eccee7d3757a05451f8c385a7ec480
 
 type
     DataType = enum
@@ -147,11 +140,6 @@ proc read_tokens(source_in: string): Deque[string] =
 
 
 proc genAbstractSyntaxTree(tokens: var Deque[string]): Node =
-<<<<<<< HEAD
-=======
-    # TODO: remove comment tokens
-
->>>>>>> 7b18cf8ca4eccee7d3757a05451f8c385a7ec480
     var token: string = tokens.popFirst()
     case token
     of "(":
@@ -425,18 +413,12 @@ proc eval(n: Node, env: ref Environment): Node =
                 # TODO: modify in place or return copy? nim default for insert is modify in place
                 # TODO: what if out of range?
                 result_node = eval(nodes[0], env)
-<<<<<<< HEAD
                 result_node.list_var.insert(eval(nodes[2], env), int(eval(nodes[1], env).number_var))
             of "delete":
                 # (delete dest idx)
                 # TODO: what if out of range?
                 result_node = eval(nodes[0], env)
                 result_node.list_var.delete(int(eval(nodes[1], env).number_var))
-=======
-                result_node.list_var.insert(eval(nodes[1], env), int(eval(nodes[2], env).number_var))
-            of "remove":
-                result_node = nodes[0] # TODO
->>>>>>> 7b18cf8ca4eccee7d3757a05451f8c385a7ec480
             of "regex_findall":
                 # (regex_findall string pattern)
                 let matches = findAll(eval(nodes[0], env).string_var, rex(eval(nodes[1], env).string_var))
